@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <meta charset="UTF-8">
+    <title>Mixology Pro</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
+        .section { margin-bottom: 30px; padding: 15px; border: 1px solid #ddd; border-radius: 8px; }
+        #admin-panel { background: #f9f9f9; padding: 10px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+    <h1>🍸 Mixology App</h1>
+
+    <!-- LOGIN ADMIN -->
+    <div class="section">
+        <div id="admin-login">
+            <input type="password" id="adminKey" placeholder="Clave Admin">
+            <button onclick="checkAdmin()">Entrar a Admin</button>
+        </div>
+
+        <div id="admin-panel" style="display:none;">
+            <h3>⚙️ Panel Administrativo</h3>
+            <label>Modo de selección:
+                <select id="selectionMode" onchange="toggleSelectionMode()">
+                    <option value="select" selected>Menú Desplegable</option>
+                    <option value="checkbox">Checkboxes</option>
+                </select>
+            </label>
+            
+            <div id="admin-ingredient-input-area" style="margin-top: 15px; margin-bottom: 15px;"></div>
+            <hr>
+
+            <h3>➕ Agregar Ingrediente</h3>
+            <input type="text" id="newIng" placeholder="Nombre">
+            <input type="text" id="catIng" placeholder="Categoría">
+            <button onclick="addIngredient()">Guardar Ingrediente</button>
+
+            <h3>🍹 Crear Receta</h3>
+            <input type="text" id="recipeName" placeholder="Nombre Receta">
+            <textarea id="recipeInstr" placeholder="Escribe aquí los pasos..." style="width: 100%; min-height: 150px;"></textarea>
+
+            <button onclick="createRecipe()">Guardar Receta</button>
+        </div>
+    </div>
+    
+    <!-- SECCIÓN DE BÚSQUEDA -->
+    <div class="section">
+        <h3>🔍 Busca por nombre</h3>
+        <input type="text" id="recipeSearch" oninput="filterByText()" placeholder="Ej: Pisco Sour...">
+    
+        <h3>🔍 Filtros por ingredientes:</h3>
+        <div id="pantry-categories">
+            <!-- Inyectado por JS -->
+        </div>
+    </div>
+
+    <div class="section">
+        <h3>🔍 Selecciona ingredientes que tienes:</h3>
+        <div id="user-pantry-selection" style="max-height: 150px; overflow-y: auto; border: 1px solid #ccc; padding: 10px;">
+            Cargando...
+        </div>
+        <div style="margin-top: 15px;">
+            <button onclick="loadAllRecipes()">Ver todo</button>
+        </div>
+        <h3>🍹 Recetas:</h3>
+        <div id="results">Selecciona ingredientes para filtrar o mira todo.</div>
+    </div>
+
+    <script>
+        let currentAdminKey = "";
+        let allIngredients = [];
+        let easyMDE;
+
+        document.addEventListener("DOMContentLoaded", () => {
+            loadUserPantry();
+            loadAllRecipes();
+        });
+
+        function initEditor() {
+            easyMDE = new EasyMDE({ 
+                element: document.getElementById('recipeInstr'),
+                spellChecker: false, // Útil si no quieres correcciones automáticas
+                toolbar: ["bold", "italic", "heading", "|", "ordered-list", "unordered-list", "|", "preview"]
+            });
+        }
+
+        async function checkAdmin() {
+            const key = document.getElementById('adminKey').value;
+            if (key === "ppp2") { 
+                currentAdminKey = key;
+                document.getElementById('admin-panel').style.display = 'block';
+                document.getElementById('admin-login').style.display = 'none';
+                loadAdminIngredients();
+            } else { alert("Clave incorrecta"); }
+        }
+
+        async function loadAdminIngredients() {
+            const response = await fetch('http://127.0.0.1:8000/ingredients/');
+            allIngredients = await response.json();
+            toggleSelectionMode();
+        }
+
+        function toggleSelectionMode() {
+            const mode = document.getElementById('selectionMode').value;
+            const container = document.getElementById('admin-ingredient-input-area');
+            if (mode === 'checkbox') {
+                container.innerHTML = allIngredients.map(i => `<label><input type="checkbox" name="recipeIng" value="${i.id}"> ${i.name}</label><br>`).join('');
+            } else {
+                container.innerHTML = `<select id="recipeIngredientsSelect" multiple size="5" style="width: 100%;">${allIngredients.map(i => `<option value="${i.id}">${i.name}</option>`).join('')}</select>`;
+            }
+        }
+
+        async function createRecipe() {
+        const name = document.getElementById('recipeName').value;
+        const instructions = easyMDE.value(); // Aquí obtienes el texto con formato 
+            
+            // Lógica para capturar ingredientes (sea select o checkbox)
+            let selected = [];
+            if(document.getElementById('selectionMode').value === 'select') {
+                selected = Array.from(document.getElementById('recipeIngredientsSelect').selectedOptions).map(o => parseInt(o.value));
+            } else {
+                selected = Array.from(document.querySelectorAll('input[name="recipeIng"]:checked')).map(i => parseInt(i.value));
+            }
+
+            if (selected.length === 0) return alert("Selecciona ingredientes");
+
+            const response = await fetch('http://127.0.0.1:8000/recipes/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-admin-key': currentAdminKey },
+                body: JSON.stringify({ name, instructions, ingredient_ids: selected })
+            });
+            if(response.ok) alert("Receta guardada");
+        }
+
+        async function addIngredient() {
+            const name = document.getElementById('newIng').value;
+            const category = document.getElementById('catIng').value;
+            await fetch('http://127.0.0.1:8000/ingredients/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, category })
+            });
+            document.getElementById('newIng').value = '';
+            document.getElementById('catIng').value = '';
+            loadAdminIngredients();
+            loadUserPantry(); // Actualiza también la lista del usuario
+            alert("Ingrediente guardado");
+        }
+
+        async function loadUserPantry() {
+            const response = await fetch('http://127.0.0.1:8000/ingredients/');
+            const ings = await response.json();
+            const container = document.getElementById('pantry-categories');
+            const categories = [...new Set(ings.map(i => i.category))];
+
+            container.innerHTML = categories.map(cat => `
+                <div class="category-box" style="margin-bottom: 10px; border: 1px solid #ddd; padding: 5px;">
+                    <button onclick="toggleCategory(this)">▼</button>
+                    <strong>${cat}</strong>
+                    <button onclick="toggleSelectAll('${cat}', true)">Marcar todos</button>
+                    
+                    <!-- AQUI AGREGAMOS EL ID ÚNICO PARA QUE TOGGLESELECTALL LO ENCUENTRE -->
+                    <div id="list-${cat}" class="ing-list" style="display: block;">
+                        ${ings.filter(i => i.category === cat).map(i => `
+                            <label style="display:block;">
+                                <input type="checkbox" name="userIng" value="${i.name}" onchange="filterRecipes()"> ${i.name}
+                            </label>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Función para contraer/expandir
+        function toggleCategory(btn) {
+            const list = btn.nextElementSibling.nextElementSibling.nextElementSibling;
+            list.style.display = (list.style.display === 'none') ? 'block' : 'none';
+        }
+
+        // Función para marcar todos de una categoría
+        function toggleSelectAll(catName, state) {
+            // Buscamos el contenedor específico de la categoría
+            const container = document.getElementById(`list-${catName}`);
+            const inputs = container.querySelectorAll('input[type="checkbox"]');
+    
+            inputs.forEach(input => {
+                input.checked = state;
+            });
+            
+            // Disparamos el filtro al terminar
+            filterRecipes();
+        }
+
+        async function filterRecipes() {
+            // Captura TODOS los checkboxes marcados, sin importar la categoría
+            const checked = Array.from(document.querySelectorAll('input[name="userIng"]:checked')).map(i => i.value);
+            
+            if (checked.length === 0) return loadAllRecipes();
+
+            // Esto crea un query string: ?ingredients=Ron&ingredients=Limon
+            const params = new URLSearchParams();
+            checked.forEach(ing => params.append('ingredients', ing));
+            
+            const response = await fetch(`http://127.0.0.1:8000/recipes/filter/?${params.toString()}`);
+            displayRecipes(await response.json());
+        }
+
+        async function loadAllRecipes() {
+            const response = await fetch('http://127.0.0.1:8000/recipes/');
+            const data = await response.json();
+            data.sort((a, b) => a.name.localeCompare(b.name));
+            displayRecipes(data);
+        }
+
+        function displayRecipes(recipes) {
+            const div = document.getElementById('results');
+            div.innerHTML = recipes.map(r => `
+                <div class="recipe-card">
+                    <strong>${r.name}</strong>
+                    <div class="instructions-content">
+                        ${marked.parse(r.instructions)}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function filterByText() {
+            const query = document.getElementById('recipeSearch').value.toLowerCase();
+            const allCards = document.querySelectorAll('.recipe-card');
+    
+            allCards.forEach(card => {
+                const name = card.querySelector('strong').textContent.toLowerCase();
+                card.style.display = name.includes(query) ? 'block' : 'none';
+            });
+        }
+
+    </script>
+</body>
+</html>
