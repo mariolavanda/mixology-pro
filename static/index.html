@@ -13,6 +13,11 @@
         .section { margin-bottom: 30px; padding: 15px; border: 1px solid #ddd; border-radius: 8px; }
         #admin-panel { background: #f9f9f9; padding: 10px; margin-top: 10px; }
     </style>
+    <!-- Editor Markdown y Renderizador -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
 </head>
 <body>
 
@@ -97,6 +102,12 @@
                 currentAdminKey = key;
                 document.getElementById('admin-panel').style.display = 'block';
                 document.getElementById('admin-login').style.display = 'none';
+
+                    easyMDE = new EasyMDE({ 
+                    element: document.getElementById('recipeInstr'),
+                    spellChecker: false
+                });
+
                 loadAdminIngredients();
             } else { alert("Clave incorrecta"); }
         }
@@ -223,7 +234,8 @@
             const div = document.getElementById('results');
             div.innerHTML = recipes.map(r => `
                 <div class="recipe-card">
-                    <strong>${r.name}</strong>
+                    <h3>${r.name}</h3>
+                    <!-- Usamos marked.parse para convertir Markdown a HTML real -->
                     <div class="instructions-content">
                         ${marked.parse(r.instructions)}
                     </div>
