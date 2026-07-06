@@ -41,6 +41,20 @@
             
             <div id="admin-ingredient-input-area" style="margin-top: 15px; margin-bottom: 15px;"></div>
             <hr>
+    
+            <h3>📋 Gestionar Recetas</h3>
+            <table id="recipes-table" style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr>
+                        <th style="text-align: left;">Nombre</th>
+                        <th style="text-align: right;">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="recipes-body">
+                    <!-- Aquí cargaremos las recetas mediante JS -->
+                </tbody>
+            </table>
+        </div>
 
             <h3>➕ Agregar Ingrediente</h3>
             <input type="text" id="newIng" placeholder="Nombre">
@@ -51,7 +65,7 @@
             <input type="text" id="recipeName" placeholder="Nombre Receta">
             <textarea id="recipeInstr" placeholder="Escribe aquí los pasos..." style="width: 100%; min-height: 150px;"></textarea>
 
-            <button onclick="createRecipe()">Guardar Receta</button>
+            <button onclick="createOrUpdateRecipe()">Guardar Receta</button>
         </div>
     </div>
     
@@ -108,6 +122,7 @@
                     spellChecker: false
                 });
 
+                loadAdminRecipes();
                 loadAdminIngredients();
             } else { alert("Clave incorrecta"); }
         }
@@ -128,27 +143,52 @@
             }
         }
 
-        async function createRecipe() {
-        const name = document.getElementById('recipeName').value;
-        const instructions = easyMDE.value(); // Aquí obtienes el texto con formato 
-            
-            // Lógica para capturar ingredientes (sea select o checkbox)
-            let selected = [];
-            if(document.getElementById('selectionMode').value === 'select') {
-                selected = Array.from(document.getElementById('recipeIngredientsSelect').selectedOptions).map(o => parseInt(o.value));
-            } else {
-                selected = Array.from(document.querySelectorAll('input[name="recipeIng"]:checked')).map(i => parseInt(i.value));
-            }
+        async function createOrUpdateRecipe() {
+    const id = document.getElementById('admin-panel').dataset.editingId;
+    const name = document.getElementById('recipeName').value;
+    const instructions = easyMDE.value();
+    
+    // --- NUEVA LÓGICA PARA CAPTURAR IDS ---
+    let ingredient_ids = [];
+    const mode = document.getElementById('selectionMode').value;
 
-            if (selected.length === 0) return alert("Selecciona ingredientes");
+    if (mode === 'checkbox') {
+        // Si es checkbox, buscamos todos los check marcados
+        ingredient_ids = Array.from(document.querySelectorAll('input[name="recipeIng"]:checked'))
+                              .map(el => parseInt(el.value));
+    } else {
+        // Si es select, obtenemos los valores del select múltiple
+        const select = document.getElementById('recipeIngredientsSelect');
+        ingredient_ids = Array.from(select.selectedOptions).map(opt => parseInt(opt.value));
+    }
+    // --------------------------------------
 
-            const response = await fetch('http://127.0.0.1:8000/recipes/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'x-admin-key': currentAdminKey },
-                body: JSON.stringify({ name, instructions, ingredient_ids: selected })
-            });
-            if(response.ok) alert("Receta guardada");
-        }
+    const adminKey = document.getElementById('adminKey').value; 
+    const method = id ? 'PUT' : 'POST';
+    const url = id ? `http://127.0.0.1:8000/recipes/${id}` : 'http://127.0.0.1:8000/recipes/';
+
+    const response = await fetch(url, {
+        method: method,
+        headers: { 
+            'Content-Type': 'application/json',
+            'x-admin-key': adminKey 
+        },
+        // Ahora enviamos ingredient_ids que el backend espera
+        body: JSON.stringify({ name, instructions, ingredient_ids }) 
+    });
+
+    if (response.ok) {
+        document.getElementById('admin-panel').dataset.editingId = "";
+        document.getElementById('recipeName').value = "";
+        easyMDE.value("");
+        loadAdminRecipes();
+        alert("¡Operación realizada con éxito!");
+    } else {
+        const errorData = await response.json();
+        console.error(errorData); // Esto te dirá exactamente qué falla si sigue habiendo error
+        alert("Error al guardar: " + response.statusText);
+    }
+}
 
         async function addIngredient() {
             const name = document.getElementById('newIng').value;
@@ -230,6 +270,22 @@
             displayRecipes(data);
         }
 
+        async function loadAdminRecipes() {
+            const response = await fetch('http://127.0.0.1:8000/recipes/');
+            const recipes = await response.json();
+            const tbody = document.getElementById('recipes-body');
+            
+            tbody.innerHTML = recipes.map(r => `
+                <tr>
+                    <td>${r.name}</td>
+                    <td style="text-align: right;">
+                        <button onclick="editRecipe(${r.id}, '${r.name}', \`${r.instructions.replace(/`/g, '\\`')}\`)">✏️</button>
+                        <button onclick="deleteRecipe(${r.id})">🗑️</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
         function displayRecipes(recipes) {
             const div = document.getElementById('results');
             div.innerHTML = recipes.map(r => `
@@ -241,6 +297,27 @@
                     </div>
                 </div>
             `).join('');
+        }
+
+        // Función para preparar la edición (carga datos en el editor)
+        function editRecipe(id, name, instr) {
+            document.getElementById('recipeName').value = name;
+            easyMDE.value(instr); // Esto carga el texto en tu editor Markdown
+            
+            // Opcional: Cambiar un atributo para saber que estamos "editando"
+            document.getElementById('admin-panel').dataset.editingId = id;
+        }
+        
+        // Función para borrar (con confirmación de seguridad)
+        async function deleteRecipe(id) {
+            const adminKey = document.getElementById('adminKey').value;
+            if(confirm("¿Seguro que quieres borrar esta receta?")) {
+                await fetch(`http://127.0.0.1:8000/recipes/${id}`, { 
+                    method: 'DELETE',
+                    headers: { 'x-admin-key': adminKey } // ¡No olvides esto aquí también!
+                });
+                loadAdminRecipes();
+            }
         }
 
         function filterByText() {

@@ -126,3 +126,24 @@ def read_root(): return FileResponse("static/index.html")
 @app.get("/recipes/", response_model=List[schemas.Recipe])
 def get_all_recipes(db: Session = Depends(get_db)):
     return db.query(models.Recipe).all()
+
+# Eliminar una receta
+@app.delete("/recipes/{recipe_id}")
+async def delete_recipe(recipe_id: int, db: Session = Depends(get_db)):
+    recipe = db.query(models.Recipe).filter(models.Recipe.id == recipe_id).first()
+    if recipe:
+        db.delete(recipe)
+        db.commit()
+        return {"message": "Receta eliminada correctamente"}
+    return {"error": "Receta no encontrada"}
+
+# Actualizar una receta
+@app.put("/recipes/{recipe_id}")
+async def update_recipe(recipe_id: int, recipe_data: dict, db: Session = Depends(get_db)):
+    recipe = db.query(models.Recipe).filter(models.Recipe.id == recipe_id).first()
+    if recipe:
+        recipe.name = recipe_data.get("name", recipe.name)
+        recipe.instructions = recipe_data.get("instructions", recipe.instructions)
+        db.commit()
+        return {"message": "Receta actualizada"}
+    return {"error": "Receta no encontrada"}
