@@ -1,0 +1,40 @@
+/* style.css - Estilo Minimalista Premium */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@300;400;600&display=swap');
+
+body { 
+    font-family: 'Inter', sans-serif; 
+    background-color: #FDFBF7; 
+    color: #2C3E50; 
+    padding: 40px 10%; 
+    line-height: 1.8; 
+}
+
+h1, h3 { font-family: 'Playfair Display', serif; color: #1A252F; }
+
+.section { 
+    background: #FFFFFF; 
+    margin-bottom: 40px; 
+    padding: 30px; 
+    border: 1px solid #EAEAEA; 
+    border-radius: 4px; 
+    box-shadow: 0 4px 6px rgba(0,0,0,0.03); 
+}
+
+button { 
+    background: #2C3E50; 
+    color: white; 
+    border: none; 
+    padding: 10px 20px; 
+    font-weight: 600; 
+    cursor: pointer; 
+    transition: background 0.3s ease; 
+    border-radius: 2px; 
+}
+
+button:hover { background: #1A252F; }
+
+table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+th { border-bottom: 2px solid #2C3E50; padding: 12px; text-align: left; }
+td { padding: 15px 10px; border-bottom: 1px solid #EAEAEA; }
+
+.recipe-card { border: 1px solid #EAEAEA; padding: 25px; margin-bottom: 20px; background: white; border-radius: 4px; }
